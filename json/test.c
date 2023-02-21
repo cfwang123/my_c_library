@@ -3,23 +3,25 @@
 #include <memory.h>
 #include <stdint.h>
 #include "myjson.h"
+#include "string.h"
 
 void test_parse(void){
 	// char jsonstr[] = "[[1,2,\"abc\",4,5],[1,2],{a:1},[3,1],[1,1],{b:2}";
-	char jsonstr[] = "[[1,2,\"abc\",4,5],[1,2],{a:1},[3,1],[1,1],{b:2}";
-	JSON js = JSON_Parse(jsonstr, 0);
+	// char jsonstr[] = "[[1,2,\"abc\",4,5],[1,2],{a:1},[3,1],[1,1],{b:2},123ajksdjflksfjlaksdjflksadfja;lkfjlkewafjalk;wfjwe;lkafjwa;lkejwl]";
+	char jsonstr[] = "[1,2,3,aslfjsdakfj]";
+	JSON js = JSON_Parse(jsonstr, 1);
 	printf("after json=%s, js.type=%d\n",jsonstr, js.type);
-	JSON_Print_Stdout(&js, 0);
+	JSON_Print_Stdout(&js, 1);
 	printf("\n");
-	char *outjs = JSON_Print_Malloc(&js, 0);
-	printf("print=%s\n",outjs);
-	free(outjs);
+	// char *outjs = JSON_Print_Malloc(&js, 0);
+	// printf("print=%s\n",outjs);
+	// free(outjs);
 	// printf("js[0][2]=%s\n",JSON_GetString(&js,0,2,-1));
 	// printf("js[1][1]=%d\n",JSON_GetInt(&js,1,1,-1));
 	// printf("js[2].a=%d\n",JSON_GetInt(&js,2,"a",-1));
 	// printf("js[2].b=%d\n",JSON_GetInt(&js,2,"b",-1));
 	// printf("js[6].c[0][0]=%d\n",JSON_GetInt(&js,6,"c",0,0,-1));
-	JSON_Free(&js);
+	JSON_Free(&js,1);
 }
 
 void test_tostring(void){
@@ -45,7 +47,7 @@ void test_tostring(void){
 	JSON_AddInt_CK(&subarr, NULL, 127);
 	JSON_Add_CK(&js, "array2", &subarr);
 	JSON_Print_Stdout(&js, 1);
-	JSON_Free(&js);
+	JSON_Free(&js,1);
 }
 
 int main(int argc, char **argv){

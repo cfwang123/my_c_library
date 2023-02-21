@@ -17,7 +17,7 @@ static void printint(void (*out)(char *,int,void*), int v,void *state);
 static void printdouble(void (*out)(char *,int,void*), double v, void *state);
 static void JSON_OutStdout(char *s, int len, void *state);
 
-#define freekey(j) if(j->key!=NULL&&j->flags&JSONF_KEYISMALLOC){debug("free key %s\n",j->key);free(j->key);j->key=NULL;}
+#define freekey(j) if(j->key!=NULL&&(j->flags&JSONF_KEYISMALLOC)){debug("free key %s\n",j->key);free(j->key);j->key=NULL;}
 #define CNT(x) (sizeof(x)/sizeof(x[0]))
 #define STRLEN(x) x,(sizeof(x)/sizeof(x[0])-1)
 const JSON JSONUNDEF = {.type = JSON_Undefined};
@@ -41,48 +41,49 @@ const char *JSON_TypeName(uint8_t type){
 	return type < CNT(TYPES) ? TYPES[type] : TYPES[JSON_Undefined];
 }
 
-void JSON_SetNULL(JSON *j){ JSON_Free(j); j->type = JSON_NULL; }
-void JSON_SetBool(JSON *j ,uint8_t v){ JSON_Free(j);j->type = JSON_Bool; j->u.ival = v; }
-void JSON_SetInt(JSON *j ,int v){ JSON_Free(j);j->type = JSON_Int; j->u.ival = v; }
-void JSON_SetDouble(JSON *j ,double v){ JSON_Free(j);j->type = JSON_Double; j->u.dval = v; }
-void JSON_SetConstString(JSON *j ,const char *v){ JSON_Free(j);j->type = JSON_ConstString; j->u.sval = (char*)v; }
+void JSON_SetNULL(JSON *j){ JSON_Free(j,0); j->type = JSON_NULL; }
+void JSON_SetBool(JSON *j ,uint8_t v){ JSON_Free(j,0);j->type = JSON_Bool; j->u.ival = v; }
+void JSON_SetInt(JSON *j ,int v){ JSON_Free(j,0);j->type = JSON_Int; j->u.ival = v; }
+void JSON_SetDouble(JSON *j ,double v){ JSON_Free(j,0);j->type = JSON_Double; j->u.dval = v; }
+void JSON_SetConstString(JSON *j ,const char *v){ JSON_Free(j,0);j->type = JSON_ConstString; j->u.sval = (char*)v; }
 void JSON_SetString(JSON *j ,const char *v){
-	JSON_Free(j);
+	JSON_Free(j,0);
 	j->type = JSON_String;
 	int len = strlen(v);
 	j->u.sval = malloc(len+1);
 	debug("malloc for string value %s\n", v);
 	memcpy(j->u.sval, v, len+1);
 }
-void JSON_SetArray(JSON *j ,JSONArray *v){ JSON_Free(j);j->type = JSON_Array; memcpy(&j->u.arrval,v,sizeof(j->u.arrval)); }
 void JSON_SetNewArray(JSON *j, int capacity){
-	JSON_Free(j);
+	JSON_Free(j,0);
 	j->type = JSON_Array;
 	memset(&j->u,0,sizeof(j->u));
 	if(capacity)
 		JSON_Resize(j, capacity);
 }
 void JSON_SetNewObject(JSON *j, int capacity){
-	JSON_Free(j);
+	JSON_Free(j,0);
 	j->type = JSON_Object;
 	memset(&j->u,0,sizeof(j->u));
 	if(capacity)
 		JSON_Resize(j, capacity);
 }
 void JSON_Set(JSON *j, JSON *v){
-	JSON_Free(j);
-	memcpy(j,v,sizeof(*j));
+	JSON_Free(j,0);
+	j->type = v->type;
+	j->u = v->u;
 }
 
-void JSON_Free(JSON *j){
+void JSON_Free(JSON *j,uint8_t freekey){
 	switch(j->type){
 		case JSON_Array:
 		case JSON_Object:
 			JSON_Foreach(j, i, v)
-				JSON_Free(v);
+				JSON_Free(v,1);
 			JSON_EndForeach;
 			if(j->u.arrval.arr){
 				free(j->u.arrval.arr);
+				debug("free array[%d]\n",j->u.arrval.capacity);
 			}
 			break;
 		case JSON_String:
@@ -90,7 +91,7 @@ void JSON_Free(JSON *j){
 			free((void*)j->u.sval);
 			break;
 	}
-	freekey(j);
+	if(freekey){ freekey(j); }
 	j->type = JSON_Undefined;
 }
 
@@ -102,7 +103,7 @@ void JSON_Clear(JSON *js){
 	if(js->type != JSON_Array && js->type != JSON_Object) return;
 	JSONArray *j = &js->u.arrval;
 	JSON_Foreach(js, i, v)
-		JSON_Free(v);
+		JSON_Free(v,1);
 	JSON_EndForeach;
 	j->length = 0;
 }
@@ -143,7 +144,9 @@ void JSON_Resize(JSON *js, int capacity){
 		int newlen = capacity < j->length ? capacity : j->length;
 		memcpy(newarr, j->arr, sizeof(JSON)*newlen);
 		free(j->arr);
+		debug("free array[%d]\n",j->capacity);
 	}
+	debug("malloc array[%d]\n",capacity);
 	j->capacity = capacity;
 	j->arr = newarr;
 }
@@ -174,7 +177,7 @@ uint8_t JSON_BoolValue(JSON *j){
 			break;
 		case JSON_String:
 		case JSON_ConstString:
-			return j->u.sval[0] == 0 || strcmp(j->u.sval,"0") == 0;
+			return j->u.sval[0] != 0 && strcmp(j->u.sval,"0") != 0 ? 1 : 0;
 			break;
 		default: return 0;
 	}
@@ -406,8 +409,8 @@ static char *parsestring(char *s, char *send, int quotemode, int USESRCSTR){
 	if(quotemode == 0){
 		if(!USESRCSTR){
 			strncpy(outs,s,send-s);
-			outs[send-s] = 0;
 		}
+		outs[send-s] = 0;
 		return outs;
 	}
 	for(;s<send;s++){
@@ -429,7 +432,7 @@ static char *parsestring(char *s, char *send, int quotemode, int USESRCSTR){
 		}
 	}
 	*pout = 0;
-	// debug("parsestring: %s -> %s\n",s,outs);
+	debug("parsestring: %s -> %s\n",s,outs);
 	return outs;
 }
 
@@ -583,7 +586,7 @@ JSON JSON_Parse(char *str, uint8_t USESRCSTR){
 						if(ctx->type == JSON_Array)
 							JSON_Add(ctx,NULL,0,&v);
 						else JSON_Add(ctx,pkey?pkey:"",!USESRCSTR,&v);
-						if(!USESRCSTR){
+						if(!USESRCSTR && pkey){
 							debug("free key %s\n",pkey);
 							free(pkey);
 						}
@@ -646,7 +649,7 @@ JSON JSON_Parse(char *str, uint8_t USESRCSTR){
 					if(ctx->type == JSON_Array)
 						JSON_Add(ctx,NULL,0,&v);
 					else JSON_Add(ctx,pkey?pkey:"",!USESRCSTR,&v);
-					if(!USESRCSTR){
+					if(!USESRCSTR && pkey){
 						debug("free key %s\n",pkey);
 						free(pkey);
 					}
@@ -708,7 +711,7 @@ err:
 	perror("error\n");
 	if(!USESRCSTR && pkey) free(pkey);
 	while(stacklen)
-		JSON_Free(&stack[--stacklen]);
+		JSON_Free(&stack[--stacklen],1);
 	return JSONUNDEF;
 }
 

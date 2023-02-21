@@ -46,9 +46,9 @@ void JSON_SetConstString(JSON *j ,const char *v);
 void JSON_SetString(JSON *j ,const char *v);
 void JSON_SetNewArray(JSON *j, int capacity);
 void JSON_SetNewObject(JSON *j, int capacity);
-void JSON_SetArray(JSON *j ,JSONArray *v);
 void JSON_Set(JSON *j, JSON *v);
-void JSON_Free(JSON *j);
+/* Recursively free all malloced string keys, string values, array/object buffers */
+void JSON_Free(JSON *j,uint8_t freekey);
 
 JSON JSON_MakeInt(int v);
 JSON JSON_MakeDouble(double v);
@@ -90,9 +90,18 @@ int JSON_GetInt(JSON *j, ...);
 double JSON_GetDouble(JSON *j, ...);
 char *JSON_GetString(JSON *j, ...);
 
+/* Parse JSON string into C struct
+ * - USESRCSTR:
+ *   - 1: modify source string contents in place, JSON keys and string values use source string buffer. Save a lot of memory alloations. Source string must remain valid when using the result JSON struct.
+ *   - 0: use malloc for every json keys and string values
+ * */
 JSON JSON_Parse(char *str, uint8_t USESRCSTR);
 void JSON_Print(JSON *j, uint8_t fmt, void (*out)(char *,int,void*), void *state);
+/* Print json to stdout
+ * - fmt: Output format, 0=Compact, 1=Indented
+ */
 void JSON_Print_Stdout(JSON *j,int fmt);
+/* Print json string as malloc char*. Must free after use. */
 char *JSON_Print_Malloc(JSON *j,int fmt);
 
 #endif
