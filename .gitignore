@@ -1,0 +1,10 @@
+.vs
+.vs/*
+.vs/**/*
+.git
+.nvimlog
+*.o
+*.exe
+*.py
+compile_flags.txt
+hashmap/
